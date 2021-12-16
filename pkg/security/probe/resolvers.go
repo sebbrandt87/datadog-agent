@@ -179,7 +179,11 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	return r.DentryResolver.Start(r.probe)
+	if err := r.DentryResolver.Start(r.probe); err != nil {
+		return err
+	}
+
+	return r.NamespaceResolver.Start(ctx)
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
@@ -189,7 +193,6 @@ func (r *Resolvers) Snapshot() error {
 	}
 
 	r.ProcessResolver.SetState(snapshotted)
-	r.NamespaceResolver.SetState(snapshotted)
 
 	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
 	if err != nil {
