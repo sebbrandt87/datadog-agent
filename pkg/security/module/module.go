@@ -310,6 +310,7 @@ func (m *Module) Reload() error {
 	currentRuleSet := 1 - atomic.LoadUint64(&m.currentRuleSet)
 	m.ruleSets[currentRuleSet] = ruleSet
 	atomic.StoreUint64(&m.currentRuleSet, currentRuleSet)
+	m.ruleSets[1-currentRuleSet] = nil
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
 	report, err := rsa.Apply(ruleSet, approvers)
