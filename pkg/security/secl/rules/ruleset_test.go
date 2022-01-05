@@ -484,6 +484,31 @@ func TestRuleSetFilters7(t *testing.T) {
 	}
 }
 
+func TestRuleSetFilters8(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	var opts Opts
+	opts.
+		WithConstants(testConstants).
+		WithSupportedDiscarders(testSupportedDiscarders).
+		WithEventTypeEnabled(enabled)
+
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+
+	addRuleExpr(t, rs, `open.flags & (O_CREAT | O_EXCL) == O_CREAT`)
+
+	caps := FieldCapabilities{
+		{
+			Field: "open.flags",
+			Types: eval.ScalarValueType | eval.BitmaskValueType,
+		},
+	}
+
+	if _, err := rs.GetEventApprovers("open", caps); err != nil {
+		t.Fatal("expected approver not found")
+	}
+}
+
 func TestGetRuleEventType(t *testing.T) {
 	rule := &eval.Rule{
 		ID:         "aaa",
