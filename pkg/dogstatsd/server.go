@@ -446,10 +446,24 @@ func (s *Server) ServerlessFlush() {
 	for _, w := range s.workers {
 		w.flush()
 	}
+
+	// start := time.Now()
+	// // flush the aggregator to have the serializer/forwarder send data to the backend.
+	// // We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
+	// agg.Flush(start.Add(time.Second*10), true)
+	// addFlushTime("MainFlushTime", int64(time.Since(start)))
+	// aggregatorNumberOfFlush.Add(1)
+	// aggregatorEventPlatformErrorLogged = false
+
+	// TODO(remy): we should flush the demultiplexer here
+	start := time.Now()
 	// flush the aggregator to have the serializer/forwarder send data to the backend.
-	agg := s.demultiplexer.Aggregator()
-	agg.ServerlessFlush <- true
-	<-agg.ServerlessFlushDone
+	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
+	s.demultiplexer.FlushAggregatedData(start.Add(time.Second*10), true)
+	// addFlushTime("MainFlushTime", int64(time.Since(start)))
+	// aggregatorNumberOfFlush.Add(1)
+	// aggregatorEventPlatformErrorLogged = false
+	// TODO(remy): wait on a callback
 }
 
 // dropCR drops a terminal \r from the data.
@@ -509,6 +523,7 @@ func (s *Server) eolEnabled(sourceType packets.SourceType) bool {
 	return false
 }
 
+// workers are running this function in their goroutine
 func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packets.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
 	for _, packet := range packets {
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)

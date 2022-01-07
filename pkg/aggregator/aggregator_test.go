@@ -12,7 +12,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"sort"
 
 	"sync/atomic"
 	"testing"
@@ -28,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -303,61 +301,61 @@ func TestSeriesTooManyTags(t *testing.T) {
 	t.Run("huge", test(110))
 }
 
-func TestDistributionsTooManyTags(t *testing.T) {
-	// this test IS USING globals (tagsetTlm and recurrentSeries) but a local aggregator
-	// -
+// func TestDistributionsTooManyTags(t *testing.T) {
+// 	// this test IS USING globals (tagsetTlm and recurrentSeries) but a local aggregator
+// 	// -
 
-	test := func(tagCount int) func(t *testing.T) {
-		expHugeCounts := make([]uint64, tagsetTlm.size)
+// 	test := func(tagCount int) func(t *testing.T) {
+// 		expHugeCounts := make([]uint64, tagsetTlm.size)
 
-		for i, thresh := range tagsetTlm.sizeThresholds {
-			if uint64(tagCount) > thresh {
-				expHugeCounts[i]++
-			}
-		}
+// 		for i, thresh := range tagsetTlm.sizeThresholds {
+// 			if uint64(tagCount) > thresh {
+// 				expHugeCounts[i]++
+// 			}
+// 		}
 
-		return func(t *testing.T) {
-			s := &serializer.MockSerializer{}
-			agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
-			start := time.Now()
+// 		return func(t *testing.T) {
+// 			s := &serializer.MockSerializer{}
+// 			agg := newTestBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+// 			start := time.Now()
 
-			var tags []string
-			for i := 0; i < tagCount; i++ {
-				tags = append(tags, fmt.Sprintf("tag%d", i))
-			}
+// 			var tags []string
+// 			for i := 0; i < tagCount; i++ {
+// 				tags = append(tags, fmt.Sprintf("tag%d", i))
+// 			}
 
-			samp := &metrics.MetricSample{
-				Name:  "test.sample",
-				Value: 13.0,
-				Mtype: metrics.DistributionType,
-				Tags:  tags,
-				Host:  agg.hostname,
-			}
-			agg.addSample(samp, timeNowNano()-10000000)
+// 			samp := &metrics.MetricSample{
+// 				Name:  "test.sample",
+// 				Value: 13.0,
+// 				Mtype: metrics.DistributionType,
+// 				Tags:  tags,
+// 				Host:  agg.hostname,
+// 			}
+// 			agg.addSample(samp, timeNowNano()-10000000)
 
-			s.On("SendServiceChecks", mock.Anything).Return(nil).Times(1)
-			s.On("SendSeries", mock.Anything).Return(nil).Times(1)
-			s.On("SendSketch", mock.Anything).Return(nil).Times(1)
-			agg.Flush(start, true)
-			s.AssertNotCalled(t, "SendEvents")
+// 			s.On("SendServiceChecks", mock.Anything).Return(nil).Times(1)
+// 			s.On("SendSeries", mock.Anything).Return(nil).Times(1)
+// 			s.On("SendSketch", mock.Anything).Return(nil).Times(1)
+// 			agg.Flush(start, true)
+// 			s.AssertNotCalled(t, "SendEvents")
 
-			expMap := map[string]uint64{}
-			for i, thresh := range tagsetTlm.sizeThresholds {
-				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSketchesCount[i]))
-				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
-			}
-			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Sketches"]
-			assert.Equal(t, expMap, gotMap)
+// 			expMap := map[string]uint64{}
+// 			for i, thresh := range tagsetTlm.sizeThresholds {
+// 				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSketchesCount[i]))
+// 				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
+// 			}
+// 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Sketches"]
+// 			assert.Equal(t, expMap, gotMap)
 
-			// reset for next tests
-			recurrentSeries = metrics.Series{}
-			tagsetTlm.reset()
-		}
-	}
-	t.Run("not-huge", test(10))
-	t.Run("almost-huge", test(95))
-	t.Run("huge", test(110))
-}
+// 			// reset for next tests
+// 			recurrentSeries = metrics.Series{}
+// 			tagsetTlm.reset()
+// 		}
+// 	}
+// 	t.Run("not-huge", test(10))
+// 	t.Run("almost-huge", test(95))
+// 	t.Run("huge", test(110))
+// }
 
 func TestRecurrentSeries(t *testing.T) {
 	// this test IS USING globals (recurrentSeries) but a local aggregator
@@ -499,117 +497,118 @@ func TestTags(t *testing.T) {
 	}
 }
 
-func TestAggregatorFlush(t *testing.T) {
-	defer config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", nil)
+// func TestAggregatorFlush(t *testing.T) {
+// 	defer config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", nil)
 
-	tests := []struct {
-		name    string
-		enabled bool
-	}{
-		{
-			name:    "aggregator_flush_metrics_and_serialize_in_parallel false",
-			enabled: false,
-		},
-		{
-			name:    "aggregator_flush_metrics_and_serialize_in_parallel true",
-			enabled: true,
-		},
-	}
+// 	tests := []struct {
+// 		name    string
+// 		enabled bool
+// 	}{
+// 		{
+// 			name:    "aggregator_flush_metrics_and_serialize_in_parallel false",
+// 			enabled: false,
+// 		},
+// 		{
+// 			name:    "aggregator_flush_metrics_and_serialize_in_parallel true",
+// 			enabled: true,
+// 		},
+// 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", tt.enabled)
-			s := &MockSerializerIterableSerie{}
-			s.On("SendServiceChecks", mock.Anything).Return(nil)
-			agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
-			expectedSeries := flushSomeSamples(agg)
-			assertSeriesEqual(t, s.series, expectedSeries)
-			s.AssertExpectations(t)
-		})
-	}
-}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", tt.enabled)
+// 			s := &MockSerializerIterableSerie{}
+// 			s.On("SendServiceChecks", mock.Anything).Return(nil)
+// 			agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+// 			expectedSeries := flushSomeSamples(agg)
+// 			assertSeriesEqual(t, s.series, expectedSeries)
+// 			s.AssertExpectations(t)
+// 		})
+// 	}
+// }
 
-// The implementation of MockSerializer.SendIterableSeries uses `s.Called(series).Error(0)`.
-// It calls internaly `Printf` on each field of the real type of `IterableStreamJSONMarshaler` which is `IterableSeries`.
-// It can lead to a race condition, if another goruntine call `IterableSeries.Append` which modifies `series.count`.
-// MockSerializerIterableSerie overrides `SendIterableSeries` to avoid this issue.
-// It also overrides `SendSeries` for simplificy.
-type MockSerializerIterableSerie struct {
-	series []*metrics.Serie
-	serializer.MockSerializer
-}
+// // The implementation of MockSerializer.SendIterableSeries uses `s.Called(series).Error(0)`.
+// // It calls internaly `Printf` on each field of the real type of `IterableStreamJSONMarshaler` which is `IterableSeries`.
+// // It can lead to a race condition, if another goruntine call `IterableSeries.Append` which modifies `series.count`.
+// // MockSerializerIterableSerie overrides `SendIterableSeries` to avoid this issue.
+// // It also overrides `SendSeries` for simplificy.
+// type MockSerializerIterableSerie struct {
+// 	series []*metrics.Serie
+// 	serializer.MockSerializer
+// }
 
-func (s *MockSerializerIterableSerie) SendIterableSeries(series marshaler.IterableMarshaler) error {
-	iterableSerie := series.(*metrics.IterableSeries)
-	defer iterableSerie.IterationStopped()
+// func (s *MockSerializer) SendIterableSeries(series marshaler.IterableMarshaler) error {
+// 	iterableSerie := series.(*metrics.IterableSeries)
+// 	defer iterableSerie.IterationStopped()
 
-	for iterableSerie.MoveNext() {
-		s.series = append(s.series, iterableSerie.Current())
-	}
-	return nil
-}
+// 	for iterableSerie.MoveNext() {
+// 		s.series = append(s.series, iterableSerie.Current())
+// 	}
+// 	return nil
+// }
 
-func (s *MockSerializerIterableSerie) SendSeries(series marshaler.StreamJSONMarshaler) error {
-	s.series = append(s.series, series.(metrics.Series)...)
-	return nil
-}
+// func (s *MockSerializerIterableSerie) SendSeries(series marshaler.StreamJSONMarshaler) error {
+// 	s.series = append(s.series, series.(metrics.Series)...)
+// 	return nil
+// }
 
-func flushSomeSamples(agg *BufferedAggregator) map[string]*metrics.Serie {
-	timeSamplerBucketSize := float64(10)
-	timestamps := []float64{0, timeSamplerBucketSize}
-	sampleCount := 100
-	expectedSeries := make(map[string]*metrics.Serie)
+// func flushSomeSamples(agg *BufferedAggregator) map[string]*metrics.Serie {
+// 	timeSamplerBucketSize := float64(10)
+// 	timestamps := []float64{0, timeSamplerBucketSize}
+// 	sampleCount := 100
+// 	expectedSeries := make(map[string]*metrics.Serie)
 
-	for v, timestamp := range timestamps {
-		value := float64(v + 1)
-		for i := 0; i < sampleCount; i++ {
-			name := fmt.Sprintf("serie%d", i)
-			agg.addSample(&metrics.MetricSample{Name: name, Value: value, Mtype: metrics.CountType}, timestamp)
-			if _, found := expectedSeries[name]; !found {
-				expectedSeries[name] = &metrics.Serie{
-					Name:     name,
-					MType:    metrics.APICountType,
-					Interval: int64(timeSamplerBucketSize),
-					Tags:     make([]string, 0)}
-			}
-			expectedSeries[name].Points = append(expectedSeries[name].Points, metrics.Point{Ts: timestamp, Value: value})
-		}
-	}
-	agg.Flush(time.Unix(int64(timeSamplerBucketSize*2), 0), true)
-	return expectedSeries
-}
+// 	for v, timestamp := range timestamps {
+// 		value := float64(v + 1)
+// 		for i := 0; i < sampleCount; i++ {
+// 			name := fmt.Sprintf("serie%d", i)
+// 			agg.addSample(&metrics.MetricSample{Name: name, Value: value, Mtype: metrics.CountType}, timestamp)
+// 			if _, found := expectedSeries[name]; !found {
+// 				expectedSeries[name] = &metrics.Serie{
+// 					Name:     name,
+// 					MType:    metrics.APICountType,
+// 					Interval: int64(timeSamplerBucketSize),
+// 					Tags:     make([]string, 0)}
+// 			}
+// 			expectedSeries[name].Points = append(expectedSeries[name].Points, metrics.Point{Ts: timestamp, Value: value})
+// 		}
+// 	}
+// 	agg.Flush(time.Unix(int64(timeSamplerBucketSize*2), 0), true)
+// 	return expectedSeries
+// }
 
-func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map[string]*metrics.Serie) {
-	// default series
-	expectedSeries["n_o_i_n_d_e_x.datadog.agent.payload.dropped"] = nil
-	expectedSeries["datadog.agent.running"] = nil
-	r := require.New(t)
+// func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map[string]*metrics.Serie) {
+// 	// default series
+// 	expectedSeries["n_o_i_n_d_e_x.datadog.agent.payload.dropped"] = nil
+// 	expectedSeries["datadog.agent.running"] = nil
+// 	r := require.New(t)
 
-	for _, serie := range series {
-		expected, found := expectedSeries[serie.Name]
-		delete(expectedSeries, serie.Name)
-		if !found {
-			t.Fatalf("Cannot found serie: %s", serie.Name)
-		}
-		if expected == nil {
-			// default series
-			continue
-		}
-		// ignore context key
-		expected.ContextKey = serie.ContextKey
+// 	for _, serie := range series {
+// 		expected, found := expectedSeries[serie.Name]
+// 		delete(expectedSeries, serie.Name)
+// 		if !found {
+// 			t.Fatalf("Cannot found serie: %s", serie.Name)
+// 		}
+// 		if expected == nil {
+// 			// default series
+// 			continue
+// 		}
+// 		// ignore context key
+// 		expected.ContextKey = serie.ContextKey
 
-		sort.Slice(serie.Points, func(i int, j int) bool {
-			return serie.Points[i].Ts < serie.Points[j].Ts
-		})
-		sort.Slice(expected.Points, func(i int, j int) bool {
-			return expected.Points[i].Ts < expected.Points[j].Ts
-		})
-		r.EqualValues(expected, serie)
-	}
-	r.Empty(expectedSeries)
-}
+// 		sort.Slice(serie.Points, func(i int, j int) bool {
+// 			return serie.Points[i].Ts < serie.Points[j].Ts
+// 		})
+// 		sort.Slice(expected.Points, func(i int, j int) bool {
+// 			return expected.Points[i].Ts < expected.Points[j].Ts
+// 		})
+// 		r.EqualValues(expected, serie)
+// 	}
+// 	r.Empty(expectedSeries)
+// }
 
 func newTestBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string, flushInterval time.Duration) *BufferedAggregator {
-	config.Datadog.Set("aggregator_flush_metrics_and_serialize_in_parallel", false)
-	return NewBufferedAggregator(s, eventPlatformForwarder, hostname, flushInterval)
+	agg := NewBufferedAggregator(s, eventPlatformForwarder, hostname, flushInterval)
+	agg.flushAndSerializeInParallel.enabled = false
+	return agg
 }
